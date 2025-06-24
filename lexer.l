@@ -19,6 +19,9 @@ char* strdup(const char* s);  // strdup 非标准函数声明
 ";"         { return SEMICOLON; }  // 分号作为语句结束
 [ \t\r\n]+    { /* 忽略空格 */ }
 .           { printf("Unknown character: %s\n", yytext); }
+"//".*        { /* 忽略单行注释 */ }
+"/*"([^*]|\*+[^*/])*\*+"/"    { /* 忽略多行注释 */ }
+
 %%
 
 int yywrap() { return 1; }
