@@ -1,15 +1,23 @@
 %{
 #include "parser.tab.h"
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+char* strdup(const char* s);  // strdup 非标准函数声明
 %}
 
 %%
-[0-9]+      { yylval = atoi(yytext); return NUMBER; }
-[a-z]       { yylval = yytext[0]; return VAR; }
+"int"           { return INT_TYPE; }
+[0-9]+              { yylval.ival = atoi(yytext); return NUMBER; }
+[a-zA-Z_][a-zA-Z0-9_]* {
+                        yylval.name = strdup(yytext);
+                        return VAR;
+                     }
 [=]         { return '='; }
-[+\-*/()]   { return yytext[0]; }
-[\n]+       { return EOL; }
-[ \t\r]+    { /* 忽略空格 */ }
+[+\-*/(),]   { return yytext[0]; }
+";"         { return SEMICOLON; }  // 分号作为语句结束
+[ \t\r\n]+    { /* 忽略空格 */ }
 .           { printf("Unknown character: %s\n", yytext); }
 %%
 

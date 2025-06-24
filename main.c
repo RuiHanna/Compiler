@@ -1,9 +1,24 @@
 #include <stdio.h>
 extern int yyparse();
+extern FILE *yyin;
 
-int main()
+int main(int argc, char *argv[])
 {
-    printf("输入表达式，每行一条（Ctrl+D/Ctrl+Z 结束）：\n");
+    if (argc < 2)
+    {
+        fprintf(stderr, "Usage: %s <input_file>\n", argv[0]);
+        return 1;
+    }
+
+    yyin = fopen(argv[1], "r");
+    if (!yyin)
+    {
+        perror("Failed to open input file");
+        return 1;
+    }
+
     yyparse();
+
+    fclose(yyin);
     return 0;
 }
