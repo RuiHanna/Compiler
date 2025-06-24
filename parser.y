@@ -5,6 +5,7 @@
 #include <string.h>
 #include <math.h>
 
+extern int curr_lineno;
 void yyerror(const char *s);
 int yylex();
 
@@ -164,6 +165,7 @@ int handle_function(char* func_name, int arg_count, int* args) {
 }
 
 void yyerror(const char *s) {
-    fprintf(stderr, "Syntax error: %s\n", s);
+    fprintf(stderr, "Syntax error at line %d: %s\n", curr_lineno, s);
 }
+
 
