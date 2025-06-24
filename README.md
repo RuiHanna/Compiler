@@ -27,3 +27,11 @@ gcc -o calc main.c lex.yy.c parser.tab.c
 ```bash
 calc
 ```
+
+- 可视化运行
+
+```bash
+python app.py
+```
+
+打开浏览器，输入`localhost:5000`
