@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>简易C语言可视化编译器</title>
+
+  <!-- CodeMirror 样式和脚本 -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.css">
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/clike/clike.js"></script>
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: "Segoe UI", sans-serif;
+      background: #f0f2f5;
+    }
+
+    header {
+      text-align: center;
+      background: #2c3e50;
+      color: white;
+      padding: 20px 0;
+      font-size: 24px;
+      font-weight: bold;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+    }
+
+    #main {
+      display: flex;
+      height: calc(100% - 80px); /* 除去 header 高度 */
+    }
+
+    .pane {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+
+    #editor {
+      flex: 1;
+      border: 1px solid #ccc;
+    }
+
+    #output {
+      flex: 1;
+      background: #1e1e1e;
+      color: #00ff66;
+      padding: 10px;
+      overflow-y: auto;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 14px;
+      border: 1px solid #444;
+    }
+
+    button {
+      margin-top: 12px;
+      padding: 10px 20px;
+      font-size: 14px;
+      background-color: #3498db;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #2980b9;
+    }
+
+    h3 {
+      margin: 0 0 10px;
+    }
+  </style>
+</head>
+<body>
+  <header>🌟 简易 C 语言可视化编译器 🌟</header>
+  <div id="main">
+    <div class="pane">
+      <h3>代码编辑区</h3>
+      <textarea id="editor">// 输入 C 语言代码，例如：
+int a = 0;
+printf("a = %d", a);</textarea>
+      <button onclick="compile()">编译并运行</button>
+    </div>
+    <div class="pane">
+      <h3>输出结果</h3>
+      <pre id="output">等待运行...</pre>
+    </div>
+  </div>
+
+  <script>
+    // 初始化 CodeMirror
+    const editor = CodeMirror.fromTextArea(document.getElementById("editor"), {
+      lineNumbers: true,
+      mode: "text/x-csrc",
+      theme: "default"
+    });
+
+    async function compile() {
+      const code = editor.getValue();
+      const res = await fetch("/compile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code })
+      });
+      const data = await res.json();
+      document.getElementById("output").innerText = data.output;
+    }
+  </script>
+</body>
+</html>
