@@ -110,6 +110,7 @@ int eval_ast(AST *node)
     case N_ASSIGN:
     {
         int v = eval_ast(node->assign.expr);
+        if (v == INT_MIN) return INT_MIN; // 表达式出错，直接返回
         set_var(node->assign.name, v);
         return v;
     }

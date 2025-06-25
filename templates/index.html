@@ -5,10 +5,8 @@
     <meta charset="UTF-8">
     <title>简易C语言可视化编译器</title>
 
-    <!-- CodeMirror 样式和脚本 -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.css">
-    <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/lib/codemirror.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.16/mode/clike/clike.js"></script>
+    <!-- Monaco Editor CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs/loader.js"></script>
 
     <style>
         html,
@@ -46,6 +44,8 @@
 
         #editor {
             flex: 1;
+            min-width: 0;
+            height: 350px;
             border: 1px solid #ccc;
         }
 
@@ -92,9 +92,7 @@
     <div id="main">
         <div class="pane">
             <h3>代码编辑区</h3>
-            <textarea id="editor">// 输入 C 语言代码，例如：
-int a = 0;
-print(a);</textarea>
+            <div id="editor"></div>
             <button onclick="compile()">编译并运行</button>
         </div>
         <div class="pane">
@@ -104,15 +102,27 @@ print(a);</textarea>
     </div>
 
     <script>
-        // 初始化 CodeMirror
-        const editor = CodeMirror.fromTextArea(document.getElementById("editor"), {
-            lineNumbers: true,
-            mode: "text/x-csrc",
-            theme: "default"
+        // Monaco Editor 初始化
+        let monacoEditor;
+        require.config({ paths: { 'vs': 'https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs' } });
+        require(['vs/editor/editor.main'], function () {
+            monacoEditor = monaco.editor.create(document.getElementById('editor'), {
+                value: `// 输入 C 语言代码，例如：
+int a = 0;
+print(a);`,
+                language: 'c',
+                theme: 'vs-dark',
+                fontSize: 14,
+                automaticLayout: true,
+                minimap: { enabled: false },
+                wordWrap: 'on', // 自动换行
+                scrollbar: { horizontal: 'auto' }
+            });
         });
 
         async function compile() {
-            const code = editor.getValue();
+            //const code = editor.getValue();
+            const code = monacoEditor.getValue();
             const res = await fetch("/compile", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -123,9 +133,7 @@ print(a);</textarea>
             outputElement.innerText = data.output;
 
             // 判断是否为错误信息（根据实际错误特征调整匹配条件）
-            const isError = data.output.includes("error") ||
-                data.output.includes("Error") ||
-                data.output.includes("Syntax error");
+            const isError = /error|Error|Syntax error|Undefined variable|未定义变量|Array index out of bounds|division by zero/i.test(data.output);
             outputElement.classList.toggle("error", isError);
         }
     </script>

@@ -5,6 +5,7 @@
 #include <ctype.h>
 #include <string.h>
 #include <math.h>
+#include <limits.h>
 
 extern int curr_lineno;
 void yyerror(const char *s);
@@ -17,7 +18,7 @@ int get_var(const char* name) {
             return symtab[i].value;
     }
     fprintf(stderr, "Undefined variable: %s\n", name);
-    return 0;
+    return INT_MIN; // 用最小整数表示未定义
 }
 
 //设置变量值
@@ -250,6 +251,10 @@ int handle_function(char* func_name, int arg_count, int* args) {
             yyerror("print function needs 1 argument");
             return 0;
         }
+        if (args[0] == INT_MIN) {
+            // 不输出
+            return 0;
+        }
         printf("%d\n", args[0]);
         return 0;
     }else if (strcmp(func_name, "<") == 0) {
@@ -292,7 +297,7 @@ int handle_function(char* func_name, int arg_count, int* args) {
         }
         if (args[1] == 0) {
             yyerror("division by zero");
-            return 0;
+            return INT_MIN;
         }
         return args[0] / args[1];
     }else if (strcmp(func_name, "EQ") == 0) {
