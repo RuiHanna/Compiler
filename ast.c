@@ -127,8 +127,12 @@ int eval_ast(AST *node)
     case N_VAR:
         return get_var(node->var_name);
     case N_ARRAY_DECL:
-        // 在符号表中分配数组
         set_array(node->array_decl.name, node->array_decl.size);
+        if (node->array_decl.init_list) {
+            for (int i = 0; i < node->array_decl.init_list->count && i < node->array_decl.size; ++i) {
+                set_array_elem(node->array_decl.name, i, eval_ast(node->array_decl.init_list->args[i]));
+            }
+        }
         break;
     case N_ARRAY_ASSIGN:
         set_array_elem(node->array_assign.name, eval_ast(node->array_assign.index), eval_ast(node->array_assign.value));
@@ -250,11 +254,22 @@ AST *new_print(AST *expr)
     return new_call("print", 1, args); // print 在 handle_function 中已有定义
 }
 
+AST *new_array_decl_init(char *name, AST *size, ASTList init_list) {
+    AST *n = malloc(sizeof(AST));
+    n->type = N_ARRAY_DECL;
+    n->array_decl.name = strdup(name);
+    n->array_decl.size = eval_ast(size);
+    n->array_decl.init_list = malloc(sizeof(ASTList));
+    *(n->array_decl.init_list) = init_list;
+    return n;
+}
+
 AST *new_array_decl(char *name, AST *size) {
     AST *n = malloc(sizeof(AST));
     n->type = N_ARRAY_DECL;
     n->array_decl.name = strdup(name);
     n->array_decl.size = eval_ast(size);
+    n->array_decl.init_list = NULL;
     return n;
 }
 

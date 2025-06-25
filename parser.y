@@ -52,10 +52,7 @@ AST *root;
 %union {
     int ival;   //数值
     char* name;      // 变量名
-    struct {
-        int count;
-        AST** args;
-    } args;          // 参数列表结构
+    ASTList args;
     AST* node;
 }
 
@@ -74,6 +71,7 @@ AST *root;
 %type <node> primary_expr
 %type <args> expr_list
 %type <node> for_init for_update
+%type <args> init_list
 
 
 %right '='
@@ -116,11 +114,14 @@ decl_stmt:
     INT_TYPE VAR SEMICOLON {
       $$ = new_assign($2, new_expr(0));
     }
-  | INT_TYPE VAR '=' expr SEMICOLON {
+    | INT_TYPE VAR '=' expr SEMICOLON {
       $$ = new_assign($2, $4);
     }
-  | INT_TYPE VAR '[' expr ']' SEMICOLON {
-      $$ = new_array_decl($2, $4); // 新增
+    | INT_TYPE VAR '[' expr ']' SEMICOLON {
+      $$ = new_array_decl($2, $4); 
+    }
+    | INT_TYPE VAR '[' expr ']' '=' '{' init_list '}' SEMICOLON {
+      $$ = new_array_decl_init($2, $4, $8); 
     }
   ;
 
@@ -200,6 +201,19 @@ expr_list:
     }
 
   | expr_list ',' expr { 
+        $$.count = $1.count + 1;
+        $$.args = realloc($1.args, $$.count * sizeof(AST*));
+        $$.args[$$.count - 1] = $3;
+    }
+  ;
+
+init_list:
+    expr {
+        $$.count = 1;
+        $$.args = malloc(sizeof(AST*));
+        $$.args[0] = $1;
+    }
+  | init_list ',' expr {
         $$.count = $1.count + 1;
         $$.args = realloc($1.args, $$.count * sizeof(AST*));
         $$.args[$$.count - 1] = $3;

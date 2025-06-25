@@ -3,6 +3,11 @@
 
 typedef struct AST AST;
 
+typedef struct {
+    int count;
+    AST **args;
+} ASTList;
+
 //符号表
 typedef struct {
     char* name;
@@ -77,6 +82,7 @@ typedef struct AST
         struct {
             char *name;
             int size;
+            ASTList *init_list;
         } array_decl;
 
         struct {
@@ -110,6 +116,7 @@ AST *new_unaryop(char op, AST *expr);        // 一元运算表达式（如负�
 AST *new_array_decl(char *name, AST *size);
 AST *new_array_assign(char *name, AST *index, AST *value);
 AST *new_array_access(char *name, AST *index);
+AST *new_array_decl_init(char *name, AST *size, ASTList init_list);
 
 // 遍历执行
 int eval_ast(AST *node);
