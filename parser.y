@@ -79,17 +79,18 @@ AST *root;
 
 
 //指明非终结符类型
-%type <node> program stmt stmt_list expr_stmt assign_stmt decl_stmt ctrl_stmt block
+%type <node> program stmt stmt_list expr_stmt decl_stmt ctrl_stmt block
 %type <node> expr
 %type <node> primary_expr
 %type <args> expr_list
 %type <node> for_init for_update
 
 
+%right '='
 %left '+' '-'
 %left '*' '/'
-%left '<' '>' LE GE EQ NEQ // 关系运算符优先级低于加减乘除
-%right UMINUS   // 一元减号优先级高于乘除加减
+%left '<' '>' LE GE EQ NEQ
+%right UMINUS
 %left ';'
 
 
@@ -113,7 +114,6 @@ stmt_list:
 
 stmt:
     expr_stmt      { $$ = $1; }
-  | assign_stmt    { $$ = $1; }
   | decl_stmt      { $$ = $1; }
   | ctrl_stmt      { $$ = $1; }
   | block          { $$ = $1; }
@@ -121,12 +121,6 @@ stmt:
 
 expr_stmt:
     expr SEMICOLON { $$ = $1; }
-  ;
-
-assign_stmt:
-    VAR '=' expr SEMICOLON {
-      $$ = new_assign($1, $3);
-    }
   ;
 
 decl_stmt:
@@ -148,7 +142,7 @@ ctrl_stmt:
   | WHILE '(' expr ')' stmt {
       $$ = new_while($3, $5);
     }
-  | FOR '(' for_init ';' expr ';' for_update ')' stmt {
+  | FOR '(' for_init SEMICOLON expr SEMICOLON for_update ')' stmt {
       $$ = new_for($3, $5, $7, $9);
     }
   ;
@@ -158,17 +152,20 @@ block:
   ;
 
 for_init:
-    assign_stmt       { $$ = $1; }
-  | /* empty */       { $$ = new_block(NULL, 0); }
+    INT_TYPE VAR { $$ = new_assign($2, new_expr(0)); }
+  | INT_TYPE VAR '=' expr { $$ = new_assign($2, $4); }
+  | expr { $$ = $1; }
+  | /* empty */           { $$ = new_block(NULL, 0); }
   ;
 
 for_update:
-    expr_stmt         { $$ = $1; }
+    expr         { $$ = $1; }
   | /* empty */       { $$ = new_block(NULL, 0); }
   ;
   
 expr:
-    expr '+' expr { $$ = new_binop('+', $1, $3); }
+    VAR '=' expr %prec '=' { $$ = new_assign($1, $3); }
+  | expr '+' expr { $$ = new_binop('+', $1, $3); }
   | expr '-' expr { $$ = new_binop('-', $1, $3); }
   | expr '*' expr { $$ = new_binop('*', $1, $3); }
   | expr '/' expr { $$ = new_binop('/', $1, $3); }
@@ -259,6 +256,58 @@ int handle_function(char* func_name, int arg_count, int* args) {
             return 0;
         }
         return args[0] > args[1];
+    }else if (strcmp(func_name, "+") == 0) {
+        if (arg_count != 2) {
+            yyerror("+ operator needs 2 arguments");
+            return 0;
+        }
+        return args[0] + args[1];
+    } else if (strcmp(func_name, "-") == 0) {
+        if (arg_count != 2) {
+            yyerror("- operator needs 2 arguments");
+            return 0;
+        }
+        return args[0] - args[1];
+    } else if (strcmp(func_name, "*") == 0) {
+        if (arg_count != 2) {
+            yyerror("* operator needs 2 arguments");
+            return 0;
+        }
+        return args[0] * args[1];
+    } else if (strcmp(func_name, "/") == 0) {
+        if (arg_count != 2) {
+            yyerror("/ operator needs 2 arguments");
+            return 0;
+        }
+        if (args[1] == 0) {
+            yyerror("division by zero");
+            return 0;
+        }
+        return args[0] / args[1];
+    }else if (strcmp(func_name, "EQ") == 0) {
+        if (arg_count != 2) {
+            yyerror("EQ operator needs 2 arguments");
+            return 0;
+        }
+        return args[0] == args[1];
+    } else if (strcmp(func_name, "NEQ") == 0) {
+        if (arg_count != 2) {
+            yyerror("NEQ operator needs 2 arguments");
+            return 0;
+        }
+        return args[0] != args[1];
+    } else if (strcmp(func_name, "LE") == 0) {
+        if (arg_count != 2) {
+            yyerror("LE operator needs 2 arguments");
+            return 0;
+        }
+        return args[0] <= args[1];
+    } else if (strcmp(func_name, "GE") == 0) {
+        if (arg_count != 2) {
+            yyerror("GE operator needs 2 arguments");
+            return 0;
+        }
+        return args[0] >= args[1];
     }
     // 添加更多函数...
     else {
