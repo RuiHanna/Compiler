@@ -1,4 +1,5 @@
 %{
+#include "ast.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -46,6 +47,8 @@ void set_var(const char* name, int value) {
 int handle_function(char* func_name, int arg_count, int* args);
 void execute_stmt(int stmt_value);
 int evaluate_expr(int expr_value);
+
+AST *root;
 %}
 
 %locations
@@ -61,8 +64,9 @@ int evaluate_expr(int expr_value);
     char* name;      // 变量名
     struct {
         int count;
-        int* args;
+        AST** args;
     } args;          // 参数列表结构
+    AST* node;
 }
 
 %token <name> VAR    // 变量名
@@ -75,10 +79,11 @@ int evaluate_expr(int expr_value);
 
 
 //指明非终结符类型
-%type <ival> program stmt expr
+%type <node> program stmt stmt_list expr_stmt assign_stmt decl_stmt ctrl_stmt block
+%type <node> expr
+%type <node> primary_expr
 %type <args> expr_list
-%type <ival> block optional_stmts stmt_list for_init for_update
-%type <ival> expr_stmt assign_stmt decl_stmt ctrl_stmt primary_expr
+%type <node> for_init for_update
 
 
 %left '+' '-'
@@ -91,20 +96,27 @@ int evaluate_expr(int expr_value);
 %% 
 
 program:
-    stmt_list
+    stmt_list { root = $1; }
   ;
 
 stmt_list:
-    stmt           { $$ = 0; }   // 空语句列表
-  | stmt_list stmt    { $$ = $2; }  // 语句列表 + 可选分号语句
+    /* empty */    { $$ = new_block(NULL, 0); }
+  | stmt_list stmt { 
+        /* 把 $2 加入序列 */
+        int old = $1->block.count;
+        $1->block.stmts = realloc($1->block.stmts, sizeof(AST*)*(old+1));
+        $1->block.stmts[old] = $2;
+        $1->block.count = old+1;
+        $$ = $1;
+    }
   ;
 
 stmt:
-    expr_stmt
-  | assign_stmt
-  | decl_stmt
-  | ctrl_stmt
-  | block
+    expr_stmt      { $$ = $1; }
+  | assign_stmt    { $$ = $1; }
+  | decl_stmt      { $$ = $1; }
+  | ctrl_stmt      { $$ = $1; }
+  | block          { $$ = $1; }
   ;
 
 expr_stmt:
@@ -112,117 +124,93 @@ expr_stmt:
   ;
 
 assign_stmt:
-    VAR '=' expr SEMICOLON { set_var($1, $3); $$ = $3; free($1); }
+    VAR '=' expr SEMICOLON {
+      $$ = new_assign($1, $3);
+    }
   ;
 
 decl_stmt:
-    INT_TYPE VAR SEMICOLON              { set_var($2, 0); $$ = 0; free($2); }
-  | INT_TYPE VAR '=' expr SEMICOLON     { set_var($2, $4); $$ = $4; free($2); }
+    INT_TYPE VAR SEMICOLON {
+      $$ = new_assign($2, new_expr(0));
+    }
+  | INT_TYPE VAR '=' expr SEMICOLON {
+      $$ = new_assign($2, $4);
+    }
   ;
 
 ctrl_stmt:
-    IF '(' expr ')' stmt %prec IF { 
-        if ($3) {
-            execute_stmt($5);
-        }
-        $$ = 0; 
+    IF '(' expr ')' stmt %prec IF {
+      $$ = new_if($3, $5);
     }
   | IF '(' expr ')' stmt ELSE stmt %prec ELSE {
-        if ($3) {
-            execute_stmt($5);
-        }else{
-            execute_stmt($7);
-        }
-        $$ = 0;
+      $$ = new_ifelse($3, $5, $7);
     }
   | WHILE '(' expr ')' stmt {
-        while( $3 ){
-            execute_stmt($5);
-            $3 = evaluate_expr($3);
-        }
-        $$ = 0;
-  }
+      $$ = new_while($3, $5);
+    }
   | FOR '(' for_init ';' expr ';' for_update ')' stmt {
-        execute_stmt($3); 
-            while ($5) {
-                execute_stmt($9);
-                execute_stmt($7);
-                $5 = evaluate_expr($5);
-            }
-        $$ = 0; 
-  }
+      $$ = new_for($3, $5, $7, $9);
+    }
   ;
 
 block:
-    '{' optional_stmts '}' { $$ = $2; }
+    '{' stmt_list '}' { $$ = $2; }
   ;
 
-optional_stmts:
-    stmt_list
-  | /* empty */ { $$=0; }
-  ;
-
-// for循环初始化
 for_init:
-    expr                        { $$ = $1; }  // 赋值表达式（如i=0）
-  | INT_TYPE VAR '=' expr       { set_var($2, $4); free($2); $$ = $4; }  // 声明并初始化（如int i=0）
-  | INT_TYPE VAR                { set_var($2, 0); free($2); $$ = 0; }    // 声明未初始化（如int i）
+    assign_stmt       { $$ = $1; }
+  | /* empty */       { $$ = new_block(NULL, 0); }
   ;
 
-// for循环更新
 for_update:
-    expr { $$ = $1; }  // 如i++、i=i+1等
+    expr_stmt         { $$ = $1; }
+  | /* empty */       { $$ = new_block(NULL, 0); }
   ;
   
 expr:
-    expr '+' expr { $$ = $1 + $3; }
-  | expr '-' expr { $$ = $1 - $3; }
-  | expr '*' expr { $$ = $1 * $3; }
-  | expr '/' expr {
-        if ($3 == 0) {
-            yyerror("Division by zero");
-            $$ = 0;
-        } else {
-            $$ = $1 / $3;
-        }
-    }
-  | expr '<' expr   { $$ = ($1 < $3) ? 1 : 0; }  // 小于
-  | expr '>' expr   { $$ = ($1 > $3) ? 1 : 0; }  // 大于
-  | expr LE expr    { $$ = ($1 <= $3) ? 1 : 0; }  // 小于等于
-  | expr GE expr    { $$ = ($1 >= $3) ? 1 : 0; }  // 大于等于
-  | expr EQ expr    { $$ = ($1 == $3) ? 1 : 0; }  // 等于
-  | expr NEQ expr   { $$ = ($1 != $3) ? 1 : 0; }  // 不等于
-  | '-' expr %prec UMINUS { $$ = -$2; }
-  | '(' expr ')'  { $$ = $2; }
-  | primary_expr
-  ;
+    expr '+' expr { $$ = new_binop('+', $1, $3); }
+  | expr '-' expr { $$ = new_binop('-', $1, $3); }
+  | expr '*' expr { $$ = new_binop('*', $1, $3); }
+  | expr '/' expr { $$ = new_binop('/', $1, $3); }
+  | expr '<' expr { $$ = new_binop('<', $1, $3); }
+  | expr '>' expr { $$ = new_binop('>', $1, $3); }
+  | expr LE expr  { $$ = new_call("LE", 2, (AST*[]){$1, $3}); }
+  | expr GE expr  { $$ = new_call("GE", 2, (AST*[]){$1, $3}); }
+  | expr EQ expr  { $$ = new_call("EQ", 2, (AST*[]){$1, $3}); }
+  | expr NEQ expr { $$ = new_call("NEQ", 2, (AST*[]){$1, $3}); }
+  | '-' expr %prec UMINUS { $$ = new_unaryop('-', $2); }
+  | '(' expr ')'          { $$ = $2; }
+  | primary_expr          { $$ = $1; }
+;
+
 
 primary_expr:
-    VAR  { $$ = get_var($1); free($1); }
-  // 函数调用
-  | VAR '(' ')' { 
-        $$ = handle_function($1, 0, NULL); 
-        free($1); 
+    VAR  { $$ = new_var($1);  }
+  | NUMBER        { $$ = new_expr($1); }
+  | VAR '(' ')' {
+        $$ = new_call($1, 0, NULL);
     }
-  | VAR '(' expr_list ')' { 
-        $$ = handle_function($1, $3.count, $3.args); 
-        free($1);
-        free($3.args);
+  | VAR '(' expr_list ')' {
+        AST **args = malloc(sizeof(AST*) * $3.count);
+        for (int i = 0; i < $3.count; i++) {
+            args[i] = $3.args[i];
+        }
+        $$ = new_call($1, $3.count, args);
     }
-  | NUMBER        { $$ = $1; }
-  ;
+;
+
 
 // 参数列表规则
 expr_list:
     expr { 
         $$.count = 1;
-        $$.args = malloc(sizeof(int));
+        $$.args = malloc(sizeof(AST*));
         $$.args[0] = $1;
     }
 
   | expr_list ',' expr { 
         $$.count = $1.count + 1;
-        $$.args = realloc($1.args, $$.count * sizeof(int));
+        $$.args = realloc($1.args, $$.count * sizeof(AST*));
         $$.args[$$.count - 1] = $3;
     }
   ;
@@ -258,11 +246,25 @@ int handle_function(char* func_name, int arg_count, int* args) {
             return 0;
         }
         printf("%d\n", args[0]);
-        return args[0];  // 你也可以返回 0 或 void 类型模拟效果
+        return 0;
+    }else if (strcmp(func_name, "<") == 0) {
+        if (arg_count != 2) {
+            yyerror("< operator needs 2 arguments");
+            return 0;
+        }
+        return args[0] < args[1];
+    } else if (strcmp(func_name, ">") == 0) {
+        if (arg_count != 2) {
+            yyerror("> operator needs 2 arguments");
+            return 0;
+        }
+        return args[0] > args[1];
     }
     // 添加更多函数...
     else {
-        yyerror("Unknown function");
+        char msg[128];
+        snprintf(msg, sizeof(msg), "Unknown function: %s", func_name);
+        yyerror(msg);
         return 0;
     }
 }
@@ -270,5 +272,4 @@ int handle_function(char* func_name, int arg_count, int* args) {
 void yyerror(const char *s) {
     fprintf(stderr, "Syntax error at line %d: %s\n", yylloc.first_line, s);  // 使用位置起始行号
 }
-
 
