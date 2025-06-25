@@ -73,6 +73,8 @@ AST *root;
 %type <args> expr_list
 %type <node> for_init for_update
 %type <args> init_list
+%type <args> var_decl_list
+%type <node> var_decl
 
 
 %right '='
@@ -112,20 +114,40 @@ expr_stmt:
   ;
 
 decl_stmt:
-    INT_TYPE VAR SEMICOLON {
-      $$ = new_assign($2, new_expr(0));
-    }
-    | INT_TYPE VAR '=' expr SEMICOLON {
-      $$ = new_assign($2, $4);
-    }
-    | INT_TYPE VAR '[' expr ']' SEMICOLON {
-      $$ = new_array_decl($2, $4); 
-    }
-    | INT_TYPE VAR '[' expr ']' '=' '{' init_list '}' SEMICOLON {
-      $$ = new_array_decl_init($2, $4, $8); 
+    INT_TYPE var_decl_list SEMICOLON {
+        // 生成一个 block，把所有声明语句串起来
+        $$ = new_block($2.args, $2.count);
     }
   ;
 
+var_decl_list:
+    var_decl {
+        $$.count = 1;
+        $$.args = malloc(sizeof(AST*));
+        $$.args[0] = $1;
+    }
+  | var_decl_list ',' var_decl {
+        $$.count = $1.count + 1;
+        $$.args = realloc($1.args, $$.count * sizeof(AST*));
+        $$.args[$$.count - 1] = $3;
+    }
+  ;
+
+var_decl:
+    VAR {
+        $$ = new_assign($1, new_expr(0));
+    }
+  | VAR '=' expr {
+        $$ = new_assign($1, $3);
+    }
+  | VAR '[' expr ']' {
+        $$ = new_array_decl($1, $3);
+    }
+  | VAR '[' expr ']' '=' '{' init_list '}' {
+        $$ = new_array_decl_init($1, $3, $7);
+    }
+  ;
+  
 ctrl_stmt:
     IF '(' expr ')' stmt %prec IF {
       $$ = new_if($3, $5);

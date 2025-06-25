@@ -96,7 +96,7 @@ int curr_lineno = 1;//当前行号
 }  // 分号作为语句结束
 [ \t\r]+    { /* 忽略空格 */ }
 .           { 
-    printf("Unknown character: %s\n", yytext);
+    printf("Unknown character at line %d: %s\n", curr_lineno, yytext);
     yylloc.first_line = yylloc.last_line = curr_lineno; 
 }
 
