@@ -271,11 +271,14 @@ int handle_function(char* func_name, int arg_count, int* args) {
         }
         return args[0] + args[1];
     } else if (strcmp(func_name, "-") == 0) {
-        if (arg_count != 2) {
-            yyerror("- operator needs 2 arguments");
+        if (arg_count == 2) {
+            return args[0] - args[1];
+        } else if (arg_count == 1) {
+            return -args[0];
+        } else {
+            yyerror("- operator needs 1 or 2 arguments");
             return 0;
         }
-        return args[0] - args[1];
     } else if (strcmp(func_name, "*") == 0) {
         if (arg_count != 2) {
             yyerror("* operator needs 2 arguments");
