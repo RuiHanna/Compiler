@@ -1,6 +1,6 @@
 # Compiler
 
-语言：C
+语言：C + Python (可视化)
 
 运行：
 
@@ -22,15 +22,11 @@ win_flex --outfile=lex.yy.c lexer.l
 gcc -o calc main.c lex.yy.c parser.tab.c
 ```
 
-- 执行calc
-
-```bash
-calc
-```
-
 - 可视化运行
 
 ```bash
+# create your own virtual environment
+pip install -r requirements.txt
 python app.py
 ```
 
