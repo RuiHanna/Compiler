@@ -13,25 +13,35 @@ int yylex();
 
 //获取变量值
 int get_var(const char* name) {
+    // printf("[get_var] 查找变量: %s\n", name);
     for (int i = 0; i < var_count; ++i) {
         if (strcmp(symtab[i].name, name) == 0)
             return symtab[i].value;
     }
     fprintf(stderr, "Undefined variable: %s\n", name);
+    exit(1); // 调试阶段直接退出
     return INT_MIN; // 用最小整数表示未定义
 }
 
 //设置变量值
 void set_var(const char* name, int value) {
+    // printf("[set_var] 设置变量: %s = %d\n", name, value);
     for (int i = 0; i < var_count; ++i) {
         if (strcmp(symtab[i].name, name) == 0) {
             symtab[i].value = value;
             return;
         }
     }
+    if (var_count >= MAX_VARS) {
+        fprintf(stderr, "符号表已满，无法添加变量: %s\n", name);
+        exit(1);
+    }
     symtab[var_count].name = strdup(name);
     symtab[var_count].value = value;
+    symtab[var_count].arr = NULL;
+    symtab[var_count].arr_size = 0;
     var_count++;
+    // printf("  新增变量: %s, var_count=%d\n", name, var_count);
 }
 
 //声明
@@ -64,6 +74,7 @@ AST *root;
 %token SEMICOLON //分号
 %token IF ELSE WHILE FOR// 控制结构token声明
 %token LE GE EQ NEQ // 关系运算符
+%token INC_OP DEC_OP ADD_ASSIGN SUB_ASSIGN MUL_ASSIGN DIV_ASSIGN
 
 
 //指明非终结符类型
@@ -77,9 +88,10 @@ AST *root;
 %type <node> var_decl
 
 
-%right '='
+%right '=' ADD_ASSIGN SUB_ASSIGN MUL_ASSIGN DIV_ASSIGN
 %left '+' '-'
 %left '*' '/'
+%right INC_OP DEC_OP
 %left '<' '>' LE GE EQ NEQ
 %right UMINUS
 %left ';'
@@ -94,16 +106,24 @@ program:
 stmt_list:
     /* empty */    { $$ = new_block(NULL, 0); }
   | stmt_list stmt { 
-        int old = $1->block.count;
-        $1->block.stmts = realloc($1->block.stmts, sizeof(AST*)*(old+1));
-        $1->block.stmts[old] = $2;
-        $1->block.count = old+1;
+        if ($2 != NULL) {
+            int old = $1->block.count;
+            $1->block.stmts = realloc($1->block.stmts, sizeof(AST*)*(old+1));
+            $1->block.stmts[old] = $2;
+            $1->block.count = old+1;
+        }
         $$ = $1;
     }
   ;
 
 stmt:
     expr_stmt      { $$ = $1; }
+  | VAR INC_OP SEMICOLON { 
+        $$ = new_incdec($1, 1);  // 生成 AST 节点，不立即执行
+    }
+  | VAR DEC_OP SEMICOLON { 
+        $$ = new_incdec($1, -1); // 生成 AST 节点，不立即执行
+    }
   | decl_stmt      { $$ = $1; }
   | ctrl_stmt      { $$ = $1; }
   | block          { $$ = $1; }
@@ -147,7 +167,7 @@ var_decl:
         $$ = new_array_decl_init($1, $3, $7);
     }
   ;
-  
+
 ctrl_stmt:
     IF '(' expr ')' stmt %prec IF {
       $$ = new_if($3, $5);
@@ -168,16 +188,20 @@ block:
   ;
 
 for_init:
-    INT_TYPE VAR { $$ = new_assign($2, new_expr(0)); }
-  | INT_TYPE VAR '=' expr { $$ = new_assign($2, $4); }
-  | expr { $$ = $1; }
-  | /* empty */           { $$ = new_block(NULL, 0); }
-  ;
+      /* empty */           { $$ = new_block(NULL, 0); }
+    | INT_TYPE VAR          { $$ = new_assign($2, new_expr(0)); }
+    | INT_TYPE VAR '=' expr { $$ = new_assign($2, $4); }
+    | expr                  { $$ = $1; }
+    | VAR INC_OP            { $$ = new_incdec($1, 1); }
+    | VAR DEC_OP            { $$ = new_incdec($1, -1); }
+    ;
 
 for_update:
-    expr         { $$ = $1; }
-  | /* empty */       { $$ = new_block(NULL, 0); }
-  ;
+      /* empty */           { $$ = new_block(NULL, 0); }
+    | expr                  { $$ = $1; }
+    | VAR INC_OP            { $$ = new_incdec($1, 1); }
+    | VAR DEC_OP            { $$ = new_incdec($1, -1); }
+    ;
   
 expr:
     VAR '[' expr ']' '=' expr %prec '=' { $$ = new_array_assign($1, $3, $6); }
@@ -192,6 +216,10 @@ expr:
   | expr GE expr  { $$ = new_call("GE", 2, (AST*[]){$1, $3}); }
   | expr EQ expr  { $$ = new_call("EQ", 2, (AST*[]){$1, $3}); }
   | expr NEQ expr { $$ = new_call("NEQ", 2, (AST*[]){$1, $3}); }
+  | VAR ADD_ASSIGN expr %prec ADD_ASSIGN { $$ = new_comp_assign($1, "+", $3); }
+  | VAR SUB_ASSIGN expr %prec SUB_ASSIGN { $$ = new_comp_assign($1, "-", $3); }
+  | VAR MUL_ASSIGN expr %prec MUL_ASSIGN { $$ = new_comp_assign($1, "*", $3); }
+  | VAR DIV_ASSIGN expr %prec DIV_ASSIGN { $$ = new_comp_assign($1, "/", $3); }
   | '-' expr %prec UMINUS { $$ = new_unaryop('-', $2); }
   | '(' expr ')'          { $$ = $2; }
   | primary_expr          { $$ = $1; }
@@ -346,6 +374,20 @@ int handle_function(char* func_name, int arg_count, int* args) {
             return 0;
         }
         return args[0] >= args[1];
+    }else if (strcmp(func_name, "++") == 0) {
+        if (arg_count != 1) {
+            yyerror("++ operator needs 1 argument");
+            return 0;
+        }
+         yyerror("++/-- 仅支持作为语句出现，且实现需调整");
+        return 0;
+    } else if (strcmp(func_name, "--") == 0) {
+        if (arg_count != 1) {
+            yyerror("-- operator needs 1 argument");
+            return 0;
+        }
+         yyerror("++/-- 仅支持作为语句出现，且实现需调整");
+        return 0;
     }
     // 添加更多函数...
     else {

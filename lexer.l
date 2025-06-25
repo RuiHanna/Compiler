@@ -73,6 +73,12 @@ int curr_lineno = 1;//当前行号
     yylloc.first_line = yylloc.last_line = curr_lineno; 
     return '='; 
 }
+"++"    { return INC_OP; }
+"--"    { return DEC_OP; }
+"+="    { return ADD_ASSIGN; }
+"-="    { return SUB_ASSIGN; }
+"*="    { return MUL_ASSIGN; }
+"/="    { return DIV_ASSIGN; }
 [+\-*/(),]   { 
     yylloc.first_line = yylloc.last_line = curr_lineno; 
     return yytext[0]; 

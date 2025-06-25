@@ -34,7 +34,8 @@ typedef enum
     N_VAR,         // 变量引用
     N_ARRAY_DECL,   // 数组声明
     N_ARRAY_ACCESS, // 数组访问（如 a[1]）
-    N_ARRAY_ASSIGN, // 数组赋值（如 a[1] = 5）
+    N_ARRAY_ASSIGN, // 数组赋值（如 a[1] = 5
+    N_INCDEC, // 自增/自减
 
 } NodeType;
 
@@ -96,6 +97,11 @@ typedef struct AST
             AST *index;
         } array_access;
 
+        struct {
+            char *name;
+            int op; // 1: ++, -1: --
+        } incdec;
+
         char *var_name; // 用于 N_VAR（变量引用）
     };
 } AST;
@@ -117,6 +123,9 @@ AST *new_array_decl(char *name, AST *size);
 AST *new_array_assign(char *name, AST *index, AST *value);
 AST *new_array_access(char *name, AST *index);
 AST *new_array_decl_init(char *name, AST *size, ASTList init_list);
+AST *new_incdec(char *name, int op); // op=1:++, op=-1:--
+AST *new_comp_assign(char *name, const char *op, AST *expr);
+AST *new_incdec(char *name, int op);
 
 // 遍历执行
 int eval_ast(AST *node);

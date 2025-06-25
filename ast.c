@@ -25,6 +25,7 @@ AST *new_expr(int val)
 
 AST *new_assign(char *name, AST *expr)
 {
+    // printf("[new_assign] name=%s, expr_type=%d\n", name, expr->type);
     AST *n = malloc(sizeof *n);
     n->type = N_ASSIGN;
     n->assign.name = name;
@@ -32,6 +33,23 @@ AST *new_assign(char *name, AST *expr)
     return n;
 }
 // ... 其余 new_* 同理
+
+AST *new_incdec(char *name, int op) {
+    // printf("[new_incdec] name=%s, op=%d\n", name, op);
+    AST *n = malloc(sizeof(AST));
+    n->type = N_INCDEC;
+    n->incdec.name = strdup(name);
+    n->incdec.op = op;
+    return n;
+}
+
+AST *new_comp_assign(char *name, const char *op, AST *expr) {
+    // 复合赋值 a += b 等价于 a = a + b
+    AST *lhs = new_var(name);
+    AST *rhs = expr;
+    AST *binop = new_binop(op[0], lhs, rhs);
+    return new_assign(name, binop);
+}
 
 AST *new_call(char *name, int argc, AST **argv)
 {
@@ -110,6 +128,7 @@ int eval_ast(AST *node)
     case N_ASSIGN:
     {
         int v = eval_ast(node->assign.expr);
+        // printf("[eval_ast N_ASSIGN] name=%s, v=%d\n", node->assign.name, v);
         if (v == INT_MIN) return INT_MIN; // 表达式出错，直接返回
         set_var(node->assign.name, v);
         return v;
@@ -168,7 +187,7 @@ void exec_ast(AST *node)
         while (eval_ast(node->forn.cond))
         {
             exec_ast(node->forn.body);
-            eval_ast(node->forn.upd);
+            exec_ast(node->forn.upd);
         }
         break;
     case N_BLOCK:
@@ -184,6 +203,9 @@ void exec_ast(AST *node)
     case N_ASSIGN:
     case N_CALL:
         eval_ast(node);
+        break;
+    case N_INCDEC:
+        set_var(node->incdec.name, get_var(node->incdec.name) + node->incdec.op);
         break;
     }
 }
@@ -227,6 +249,7 @@ void free_ast(AST *node)
 }
 
 AST *new_var(char *name){
+    // printf("[new_var] name=%s\n", name);
     AST *n = malloc(sizeof(AST));
     n->type = N_VAR;
     n->var_name = strdup(name);
