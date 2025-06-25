@@ -1,9 +1,10 @@
 #include <stdio.h>
+#include "ast.h"
 extern int yyparse();
 extern FILE *yyin;
-extern void exec_ast(void *root); // root 是 AST* 类型
-extern void free_ast(void *root);
 extern void *root;
+Variable symtab[MAX_VARS];
+int var_count = 0;
 
 int main(int argc, char *argv[])
 {

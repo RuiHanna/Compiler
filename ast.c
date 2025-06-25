@@ -4,9 +4,15 @@
 #include <stdio.h>
 #include <string.h>
 
+extern int var_count;
+extern Variable symtab[];
+
 int get_var(const char* name);
 void set_var(const char* name, int value);
 int handle_function(char* func_name, int arg_count, int* args);
+void set_array(const char* name, int size);
+void set_array_elem(const char* name, int idx, int value);
+int get_array_elem(const char* name, int idx);
 
 // 以下仅示意：实际要 malloc 并填充字段
 AST *new_expr(int val)
@@ -120,6 +126,15 @@ int eval_ast(AST *node)
     }
     case N_VAR:
         return get_var(node->var_name);
+    case N_ARRAY_DECL:
+        // 在符号表中分配数组
+        set_array(node->array_decl.name, node->array_decl.size);
+        break;
+    case N_ARRAY_ASSIGN:
+        set_array_elem(node->array_assign.name, eval_ast(node->array_assign.index), eval_ast(node->array_assign.value));
+        break;
+    case N_ARRAY_ACCESS:
+        return get_array_elem(node->array_access.name, eval_ast(node->array_access.index));
     default:
         return 0;
     }
@@ -154,6 +169,10 @@ void exec_ast(AST *node)
     case N_BLOCK:
         for (int i = 0; i < node->block.count; i++)
             exec_ast(node->block.stmts[i]);
+        break;
+    case N_ARRAY_DECL:
+    case N_ARRAY_ASSIGN:
+        eval_ast(node);
         break;
     // 赋值和函数调用都是表达式，直接 eval
     case N_EXPR:
@@ -231,4 +250,68 @@ AST *new_print(AST *expr)
     return new_call("print", 1, args); // print 在 handle_function 中已有定义
 }
 
+AST *new_array_decl(char *name, AST *size) {
+    AST *n = malloc(sizeof(AST));
+    n->type = N_ARRAY_DECL;
+    n->array_decl.name = strdup(name);
+    n->array_decl.size = eval_ast(size);
+    return n;
+}
 
+AST *new_array_assign(char *name, AST *index, AST *value) {
+    AST *n = malloc(sizeof(AST));
+    n->type = N_ARRAY_ASSIGN;
+    n->array_assign.name = strdup(name);
+    n->array_assign.index = index;
+    n->array_assign.value = value;
+    return n;
+}
+
+AST *new_array_access(char *name, AST *index) {
+    AST *n = malloc(sizeof(AST));
+    n->type = N_ARRAY_ACCESS;
+    n->array_access.name = strdup(name);
+    n->array_access.index = index;
+    return n;
+}
+
+void set_array(const char* name, int size) {
+    for (int i = 0; i < var_count; ++i) {
+        if (strcmp(symtab[i].name, name) == 0) {
+            if (symtab[i].arr) free(symtab[i].arr);
+            symtab[i].arr = calloc(size, sizeof(int));
+            symtab[i].arr_size = size;
+            return;
+        }
+    }
+    symtab[var_count].name = strdup(name);
+    symtab[var_count].arr = calloc(size, sizeof(int));
+    symtab[var_count].arr_size = size;
+    var_count++;
+}
+
+void set_array_elem(const char* name, int idx, int value) {
+    for (int i = 0; i < var_count; ++i) {
+        if (strcmp(symtab[i].name, name) == 0 && symtab[i].arr) {
+            if (idx >= 0 && idx < symtab[i].arr_size)
+                symtab[i].arr[idx] = value;
+            else
+                fprintf(stderr, "Array index out of bounds: %s[%d]\n", name, idx);
+            return;
+        }
+    }
+    fprintf(stderr, "Undefined array: %s\n", name);
+}
+
+int get_array_elem(const char* name, int idx) {
+    for (int i = 0; i < var_count; ++i) {
+        if (strcmp(symtab[i].name, name) == 0 && symtab[i].arr) {
+            if (idx >= 0 && idx < symtab[i].arr_size)
+                return symtab[i].arr[idx];
+            else
+                fprintf(stderr, "Array index out of bounds: %s[%d]\n", name, idx);
+        }
+    }
+    fprintf(stderr, "Undefined array: %s\n", name);
+    return 0;
+}

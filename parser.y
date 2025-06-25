@@ -10,16 +10,6 @@ extern int curr_lineno;
 void yyerror(const char *s);
 int yylex();
 
-//定义符号表
-#define MAX_VARS 1024
-typedef struct {
-    char* name;
-    int value;
-} Variable;
-
-Variable symtab[MAX_VARS];
-int var_count = 0;//符号表中变量计数
-
 //获取变量值
 int get_var(const char* name) {
     for (int i = 0; i < var_count; ++i) {
@@ -103,7 +93,6 @@ program:
 stmt_list:
     /* empty */    { $$ = new_block(NULL, 0); }
   | stmt_list stmt { 
-        /* 把 $2 加入序列 */
         int old = $1->block.count;
         $1->block.stmts = realloc($1->block.stmts, sizeof(AST*)*(old+1));
         $1->block.stmts[old] = $2;
@@ -129,6 +118,9 @@ decl_stmt:
     }
   | INT_TYPE VAR '=' expr SEMICOLON {
       $$ = new_assign($2, $4);
+    }
+  | INT_TYPE VAR '[' expr ']' SEMICOLON {
+      $$ = new_array_decl($2, $4); // 新增
     }
   ;
 
@@ -164,7 +156,8 @@ for_update:
   ;
   
 expr:
-    VAR '=' expr %prec '=' { $$ = new_assign($1, $3); }
+    VAR '[' expr ']' '=' expr %prec '=' { $$ = new_array_assign($1, $3, $6); }
+  | VAR '=' expr %prec '=' { $$ = new_assign($1, $3); }
   | expr '+' expr { $$ = new_binop('+', $1, $3); }
   | expr '-' expr { $$ = new_binop('-', $1, $3); }
   | expr '*' expr { $$ = new_binop('*', $1, $3); }
@@ -183,6 +176,7 @@ expr:
 
 primary_expr:
     VAR  { $$ = new_var($1);  }
+  | VAR '[' expr ']' { $$ = new_array_access($1, $3); }
   | NUMBER        { $$ = new_expr($1); }
   | VAR '(' ')' {
         $$ = new_call($1, 0, NULL);

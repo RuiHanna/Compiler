@@ -87,6 +87,9 @@ int curr_lineno = 1;//当前行号
     return '}';  // 直接返回字符字面量作为token
 }
 
+"[" { yylloc.first_line = yylloc.last_line = curr_lineno; return '['; }
+"]" { yylloc.first_line = yylloc.last_line = curr_lineno; return ']'; }
+
 ";"         { 
     yylloc.first_line = yylloc.last_line = curr_lineno; 
     return SEMICOLON; 
